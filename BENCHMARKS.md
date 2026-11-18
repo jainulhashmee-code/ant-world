@@ -154,28 +154,44 @@ default; `--sep` / `--nosep` force it either way.
 ### M5 — in-browser, 100,000 agents
 
 Chrome, WebGPU on Apple Metal-3, `?seed=7&ants=100000`, headed window. Read from
-the HUD's own stats payload after ~70 s of simulation (2,177 ticks).
+the HUD's own stats payload after 176 s of simulation (5,281 ticks — long enough
+to pass the 1,600-tick energy cliff, which earlier samples did not).
 
 | Population | Backend | FPS | p50 | p95 | p99 | Sim/tick | Render | Sim mem | Updates/s |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 100,000 | WebGPU | 57.4 | 16.95 ms | 22.33 ms | 25.81 ms | 11.77 ms | 2.17 ms | 6.94 MB | 3.02M |
+| 100,000 | WebGPU | 57–60 | 16.7–17.3 ms | 17.3 ms | 18.5 ms | 6.8–7.6 ms | 1.6 ms | 6.94 MB | 2.93M |
 | 10,000 | WebGPU | 60.0 | 16.67 ms | 17.07 ms | 17.55 ms | 2.88 ms | 0.25 ms | 1.41 MB | 0.30M |
+
+FPS is a range because it is sampled, not averaged over the session: across
+samples at 100,000 agents the p50 moved between 16.67 and 17.26 ms. Colony
+behaviour over one 176 s run: **183,000 deliveries**, 1,040/s, with 74% of all
+harvested food arriving at the nest (the rest still in transit).
+
+Colony behaviour over that run: **183,000 deliveries**, 1,040/s, with 74% of all
+harvested food arriving at the nest (the rest still in transit).
 
 Read this honestly:
 
-- **"3.02M updates/s" is a schedule being met, not a capacity.** The sim runs a
+- **"2.93M updates/s" is a schedule being met, not a capacity.** The sim runs a
   fixed 30 Hz, so `updates/s` at 100,000 agents is 100,000 × 30 by construction —
   it reads the same on a fast machine and a slow one. What actually varies is
-  `sim/tick`: 11.77 ms against a 33.3 ms budget, i.e. 2.8× headroom (~84 ticks/s
-  of capacity in-browser). The honest claim is "holds 30 Hz at 100,000 agents
-  with 2.8× headroom", not the 3M figure.
+  `sim/tick`: 7.6 ms against a 33.3 ms budget, i.e. **4.4× headroom** (~131
+  ticks/s of capacity in-browser). The honest claim is "holds 30 Hz at 100,000
+  agents with 4.4× headroom", not the 3M figure.
 - **Sim memory is 6.94 MB against a 10 MB budget**, and that number is the sum
   of every typed array the engine allocates, not an estimate.
-- **Frame p95 is 22.3 ms at 100K, i.e. ~45 fps, not 60.** The p50 holds the
-  16.7 ms line; the tail comes from simulation and render sharing one thread, so
-  a slow tick delays the frame behind it. This is the honest cost of the
-  single-worker design and it is the M4 argument for splitting the sim across
-  workers — not something to hide behind a good p50.
+- **Frames hold 60 fps at 100,000 agents**: p50 16.67 ms, p95 17.33 ms, p99
+  18.53 ms. An earlier run of the same commit measured p95 22.33 ms; the
+  difference is the energy fix removing the per-tick starvation branch (a
+  `sin`/`cos` respawn scatter), which cut `sim/tick` from 11.8 ms to 7.6 ms.
+  That is a useful reminder that at 100,000 agents, *behaviour* is a
+  performance variable.
+- **Revivals are 685/s at steady state** (120,654 over the run) — about 1.2
+  restarts per ant per three minutes. Lower is better and this is the clearest
+  remaining behaviour cost: those are ants that never found a source, dying at
+  the 1,600-tick energy cliff. Productive ants now persist, which took
+  deliveries from 188/s to 1,040/s, but the lost-ant churn is the next thing to
+  fix.
 - `updates/s` at 10,000 reads 0.30M because that *is* correct: 10,000 agents ×
   30 Hz. Colouring it green only at 3M/s — which is what the HUD did at first —
   marks a healthy 10K colony as failing. It is now coloured against whether the
@@ -231,6 +247,36 @@ into a milky smear of idle agents. The larder now scales with population
 (`FOOD_PER_ANT`), so the forage loop stays meaningful at every population. Worth
 recording because it is the failure mode of every "scale it up" demo: the
 constants that made 100 agents look alive are invisible at 100,000.
+
+**5. Energy refilled only on delivery, so most ants starved carrying food.**
+
+Spawn energy is 200 and decay is 1 per 8 ticks, so lifespan is 1,600 ticks. The
+far food sources sit over 1,300 world units from the nest. Any ant whose round
+trip outlasted its lifespan starved in transit and dropped its load — which at
+100,000 agents was most of the colony. Food left the sources and never arrived.
+
+Finding food now restores energy, because a forager standing on a food source has
+by definition eaten. Measured at 100,000 agents, before → after:
+
+| | Deliveries/s | Revivals/s | Food arriving |
+| --- | --- | --- | --- |
+| energy on delivery only | 188 | 1,483 | ~0% |
+| energy restored at food | 1,040 | 685 | 74% |
+
+Two process notes, because both nearly produced a false claim:
+
+- The first "revivals are now zero" reading was taken at tick 1,401 — **before**
+  the 1,600-tick cliff, so no ant could have died yet. It proved nothing. Check
+  the measurement window against the mechanism's timescale before believing a
+  clean result.
+- The matching unit test failed at 4,000 agents with 84% of ants recycling, which
+  looked like the fix not working. It was map luck: at low density most ants
+  never find a source at all. The test now asserts the mechanism (a laden ant
+  cannot be running on fumes) rather than colony economics.
+
+Revivals at 685/s are the clearest remaining behaviour cost: those are still ants
+that never found food, dying at the cliff. That is the next thing to fix, not
+something the energy change solved.
 
 ### Soak (1 hour)
 
