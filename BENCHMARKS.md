@@ -87,18 +87,102 @@ as the grid gets populated), pheromone random reads exceeding L2 working set,
 and grid build `fill(-1)` over 65K heads. This is the first real optimisation
 target and the next commit measures it rather than guessing.
 
+**Resolved, and the answer was none of the three.** A/B with `--nosep` isolated
+pairwise separation as responsible for essentially all of it:
 
-### Sim throughput (headless, Node)
+| 100,000 agents | Ticks/s | Updates/s |
+| --- | --- | --- |
+| separation on | 7 | 0.68M |
+| separation off | 64 | 6.37M |
 
-| Commit | Population | Ticks/s | Updates/s | Sim memory | Notes |
-| --- | --- | --- | --- | --- | --- |
-| _pending M1_ | 100 | | | | |
+**9.3× for a pass that does nothing at that density.** Mean nearest-neighbour
+spacing at 100K is ~13 world units against a 4.5-unit separation radius, so the
+correction almost never fires — but every ant still pays to search its 3×3
+neighbourhood to discover that. It is now a population-gated LOD
+(`SEPARATION_MAX_POP`), active below 20,000 where spacing is tight enough for it
+to shape the swarm, off above it where it is invisible.
 
-### Browser frame time
+The general lesson: this was found by disabling a feature and re-running, not by
+profiling. A sampler attributes the time correctly to a pass that should not be
+running at all.
 
-| Commit | Population | Backend | p50 | p95 | p99 | Sim mem | GPU mem | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| _pending M2_ | 1,000 | | | | | | | |
+
+### M5 — in-browser, 100,000 agents
+
+Chrome, WebGPU on Apple Metal-3, `?seed=7&ants=100000`, headed window. Read from
+the HUD's own stats payload after ~70 s of simulation (2,177 ticks).
+
+| Population | Backend | FPS | p50 | p95 | p99 | Sim/tick | Render | Sim mem | Updates/s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 100,000 | WebGPU | 57.4 | 16.95 ms | 22.33 ms | 25.81 ms | 11.77 ms | 2.17 ms | 6.94 MB | 3.02M |
+| 10,000 | WebGPU | 60.0 | 16.67 ms | 17.07 ms | 17.55 ms | 2.88 ms | 0.25 ms | 1.41 MB | 0.30M |
+
+Read this honestly:
+
+- **The simulation target is met.** 3.02M updates/s at 100,000 agents, 11.8 ms
+  per tick against a 33.3 ms budget — the fixed 30 Hz step has 2.8× headroom.
+- **Sim memory is 6.94 MB against a 10 MB budget**, and that number is the sum
+  of every typed array the engine allocates, not an estimate.
+- **Frame p95 is 22.3 ms at 100K, i.e. ~45 fps, not 60.** The p50 holds the
+  16.7 ms line; the tail comes from simulation and render sharing one thread, so
+  a slow tick delays the frame behind it. This is the honest cost of the
+  single-worker design and it is the M4 argument for splitting the sim across
+  workers — not something to hide behind a good p50.
+- `updates/s` at 10,000 reads 0.30M because that *is* correct: 10,000 agents ×
+  30 Hz. Colouring it green only at 3M/s — which is what the HUD did at first —
+  marks a healthy 10K colony as failing. It is now coloured against whether the
+  sim holds its own 30 Hz step.
+
+### Findings
+
+**1. The FPS counter was measuring the wrong thing, and it hid a wasted loop.**
+
+The loop reported 316 fps at 10,000 ants. It was not running at 316 fps; it was
+computing `1000 / (mean time spent doing work)` and calling that FPS. Real frame
+interval was never measured, and nothing paced the loop at all — worker
+`requestAnimationFrame` fired ~5× faster than the display, so ~80% of frames
+rendered into a canvas nobody would see.
+
+Two separate bugs wearing one costume:
+
+```
+fps = 1000 / workTime      // 3 ms of work reported as "333 fps"
+```
+
+Fixed by storing the **interval** between frames (`t0 - lastFrame`) for
+p50/p95/p99 and by gating the scheduler on a 16.7 ms deadline. Result: exactly
+60.0 fps, p50 16.67 ms. A display loop with no pacing will happily burn a core
+producing frames that never reach a screen, and a throughput metric built from
+work time will report it as excellent.
+
+**2. `postMessage` without a transfer list fails silently and looks like a
+   hung GPU.**
+
+The main thread sent the `OffscreenCanvas` without listing it in the transfer
+array. `postMessage` throws `DataCloneError`, the worker never receives `init`,
+and the UI sits on "booting…" forever with **no console error**, because
+`worker.onerror` does not fire for a throw inside the posting thread and the
+worker itself never failed.
+
+The diagnostic that worked was elimination: modules all returned 200, WebGL2 was
+present, `navigator.gpu` existed — so the worker must be alive and waiting. From
+there, "what does it never receive?" answers it in one step.
+
+**3. An unbounded GPU handshake turns a bad driver into a black screen.**
+
+`navigator.gpu.requestAdapter()` can hang indefinitely rather than reject. Every
+GPU step is now wrapped in a 4 s timeout that falls back to WebGL2, and the
+whole boot path is one `try/catch` that reports to the UI — because unhandled
+rejections inside a worker do not surface through `onerror` either.
+
+**4. A fixed food budget starves a 100,000-ant colony in 70 seconds.**
+
+Not a rendering issue: at 100K the colony ate the world bare in about a minute,
+after which 96,000 ants wandered with nothing to do and the whole frame turned
+into a milky smear of idle agents. The larder now scales with population
+(`FOOD_PER_ANT`), so the forage loop stays meaningful at every population. Worth
+recording because it is the failure mode of every "scale it up" demo: the
+constants that made 100 agents look alive are invisible at 100,000.
 
 ### Soak (1 hour)
 

@@ -45,6 +45,11 @@ function send(msg: MainToWorker): void {
   worker?.postMessage(msg);
 }
 
+/** Control messages are plain data; only the canvas needs a transfer list. */
+function sendWithTransfer(msg: MainToWorker, transfer: Transferable[]): void {
+  worker?.postMessage(msg, transfer);
+}
+
 function start(): void {
   if (!('transferControlToOffscreen' in canvas)) {
     hud.showBootError(
@@ -77,7 +82,12 @@ function start(): void {
   };
 
   const offscreen = canvas.transferControlToOffscreen();
-  send({ type: 'init', canvas: offscreen, seed, population, width, height, camera });
+  // The OffscreenCanvas MUST be in the transfer list. Without it postMessage
+  // throws DataCloneError and the worker waits for an init that never arrives.
+  sendWithTransfer(
+    { type: 'init', canvas: offscreen, seed, population, width, height, camera },
+    [offscreen],
+  );
 }
 
 // ---------------------------------------------------------------------------

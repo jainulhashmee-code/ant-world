@@ -15,10 +15,11 @@ import {
   FOOD_SOURCES,
   FOOD_RADIUS_MIN,
   FOOD_RADIUS_MAX,
-  FOOD_AMOUNT_MIN,
-  FOOD_AMOUNT_MAX,
+  FOOD_SHARE_MIN,
+  FOOD_SHARE_MAX,
   FOOD_DIST_MIN,
   FOOD_DIST_MAX,
+  FOOD_PER_ANT,
 } from '../core/config';
 
 const INV_TERRAIN_CELL = 1 / TERRAIN_CELL;
@@ -67,8 +68,13 @@ export class World {
     this.foodMax = mem.i32('world.foodMax', MAX_SOURCES);
   }
 
-  /** Deterministic map generation. */
-  generate(worldSeed: number): void {
+  /**
+   * Deterministic map generation.
+   *
+   * `population` sets the larder size — see FOOD_PER_ANT for why a fixed food
+   * budget makes a large colony starve in under two minutes.
+   */
+  generate(worldSeed: number, population = 10_000): void {
     this.terrain.fill(0);
     this.foodCount = 0;
     this.rockCount = 0;
@@ -126,8 +132,14 @@ export class World {
         if (this.circleTouchesWall(fx, fy, r)) continue;
 
         s = splitmix32(s);
-        const amount =
-          FOOD_AMOUNT_MIN + ((s * U32_TO_F32) * (FOOD_AMOUNT_MAX - FOOD_AMOUNT_MIN)) | 0;
+        // Larder scales with the colony: FOOD_PER_ANT units per ant, split
+        // across the sources with enough jitter to make some worth finding.
+        const share =
+          FOOD_SHARE_MIN + (s * U32_TO_F32) * (FOOD_SHARE_MAX - FOOD_SHARE_MIN);
+        const amount = Math.max(
+          1,
+          Math.round((population * FOOD_PER_ANT * share) / FOOD_SOURCES),
+        );
 
         const i = this.foodCount++;
         this.foodX[i] = fx;

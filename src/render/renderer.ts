@@ -48,6 +48,29 @@ export const DEFAULT_LAYERS: Layers = {
 };
 
 /**
+ * Bound every GPU handshake.
+ *
+ * `requestAdapter()` can hang forever on a bad driver or in a browser that
+ * exposes `navigator.gpu` but has no usable device. Without this the worker
+ * never reports ready and the user gets a permanent black screen with no error.
+ */
+function withTimeout<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    work.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
+/**
  * Create a renderer on an OffscreenCanvas, preferring WebGPU.
  *
  * Failure is expected and handled: Safari and older Chromium have no WebGPU.
@@ -57,8 +80,7 @@ export async function createRenderer(canvas: OffscreenCanvas): Promise<Renderer>
 
   if (gpu) {
     try {
-      const r = await WebGPURenderer.create(canvas, gpu);
-      return r;
+      return await withTimeout(WebGPURenderer.create(canvas, gpu), 4000, 'WebGPU init');
     } catch (err) {
       console.warn('[ant-world] WebGPU unavailable, falling back to WebGL2:', err);
     }

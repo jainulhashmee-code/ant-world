@@ -17,11 +17,11 @@ agent-based simulation, with ants as the first application.
 | Milestone | Population | State |
 | --- | --- | --- |
 | M0 Plan & skeleton | — | ✅ |
-| M1 MVP correctness | 100 | 🚧 |
-| M2 V1 | 1,000 | — |
-| M3 V2 | 10,000 | — |
-| M4 V3 | 50,000 | — |
-| M5 V4 north star | **100,000** | — |
+| M1 MVP correctness | 100 | ✅ |
+| M2 V1 | 1,000 | ✅ |
+| M3 V2 | 10,000 | ✅ |
+| M4 V3 | 50,000 | ✅ |
+| M5 V4 north star | **100,000** | ✅ 3.02M updates/s · 11.8 ms/tick · 6.94 MB |
 | M6 V5 exploration | 1,000,000 | — |
 
 Live numbers live in [BENCHMARKS.md](./BENCHMARKS.md). The plan and its

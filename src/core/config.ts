@@ -112,10 +112,23 @@ export const HOMING_WEIGHT = 0.32;
 // Pheromones
 // ---------------------------------------------------------------------------
 
-/** Deposited per tick by a laden ant on the FOOD field. */
-export const DEPOSIT_FOOD = 14;
-/** Deposited per tick by an outbound ant on the HOME field. */
-export const DEPOSIT_HOME = 5;
+/**
+ * Deposited per tick by a laden ant on the FOOD field.
+ *
+ * Tuned against the 8-bit field's saturation point: too high and the whole
+ * trail pins at 255, the gradient dies, and the field renders as a white blob.
+ */
+export const DEPOSIT_FOOD = 10;
+/**
+ * Deposited by an outbound ant on the HOME field — but only while that ant is
+ * actually standing on a FOOD trail.
+ *
+ * Leaving every forager depositing HOME everywhere fills the map with noise
+ * (visually a blue wash, behaviourally a useless gradient). Gating on the trail
+ * makes HOME mark exactly the corridor a laden ant wants: nest → food. Each
+ * channel then reinforces the other instead of competing.
+ */
+export const DEPOSIT_HOME = 6;
 /** Saturating ceiling to keep wraparound impossible. */
 export const PHERO_MAX = 255;
 
@@ -142,8 +155,27 @@ export const ENERGY_MAX = 255;
 export const FOOD_SOURCES = 4;
 export const FOOD_RADIUS_MIN = 70;
 export const FOOD_RADIUS_MAX = 150;
-export const FOOD_AMOUNT_MIN = 2000;
-export const FOOD_AMOUNT_MAX = 6000;
+
+/**
+ * Food per ant in the colony.
+ *
+ * The larder has to scale with the colony or the demo dies: with a fixed
+ * 20,000-unit budget a 100,000-ant colony strips every source bare in about
+ * 70 seconds and then spends the rest of the session wandering with nothing to
+ * do. Trip rate grows sublinearly with population, so a per-ant budget means a
+ * bigger colony gets a longer runway rather than a shorter one.
+ *
+ * At 2 units/ant: 10,000 ants keep ~14 minutes of work, 100,000 keep ~25.
+ */
+export const FOOD_PER_ANT = 2;
+
+/**
+ * Per-source share jitter, as a fraction of an even split. Sources should not
+ * all hold exactly the same amount — the map should reward finding the rich one
+ * — but no source may be so small that it is gone before a trail reaches it.
+ */
+export const FOOD_SHARE_MIN = 0.55;
+export const FOOD_SHARE_MAX = 1.45;
 
 /** Food source ring around the nest, in world units. */
 export const FOOD_DIST_MIN = 420;

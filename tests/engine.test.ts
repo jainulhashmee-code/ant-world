@@ -116,6 +116,28 @@ describe('world generation', () => {
     expect(Array.from(a.terrain)).toEqual(Array.from(b.terrain));
     expect(a.foodCount).toBe(b.foodCount);
   });
+
+  it('scales the larder with the colony', () => {
+    // Regression guard: a fixed food budget starves a 100K colony in about a
+    // minute, after which every ant wanders with nothing to do. The larder has
+    // to grow with the population for the forage loop to stay meaningful.
+    const perAnt = (population: number): number => {
+      const w = new World();
+      w.generate(42, population);
+      let total = 0;
+      for (let i = 0; i < w.foodCount; i++) total += w.foodAmount[i];
+      return total / population;
+    };
+
+    const small = perAnt(1_000);
+    const large = perAnt(100_000);
+    expect(small).toBeGreaterThan(1);
+    expect(large).toBeGreaterThan(1);
+    // Same per-ant budget at both ends of the range (jitter is seeded per
+    // population only through the share draw, so allow the source-count spread).
+    expect(large / small).toBeGreaterThan(0.7);
+    expect(large / small).toBeLessThan(1.4);
+  });
 });
 
 describe('pheromones', () => {

@@ -131,13 +131,15 @@ fn fs_main(in: VSOut) -> @location(0) vec4f {
   let home = textureSample(homeTex, samp, tuv).r;
   let food = textureSample(foodTex, samp, tuv).r;
 
-  let h = smoothstep(0.015, 0.55, home) * frame.intensity;
-  let f = smoothstep(0.015, 0.55, food) * frame.intensity;
+  // The floor is above the decay noise and the ceiling is well under 1 so a
+  // saturated trail still shows its structure instead of clipping to white.
+  let h = smoothstep(0.03, 0.42, home) * frame.intensity;
+  let f = smoothstep(0.03, 0.42, food) * frame.intensity;
 
-  // Cool blue for the home trail, warm amber for the food trail.
+  // Cool blue for the home corridor, warm amber for the food trail.
   var col = vec3f(0.035, 0.040, 0.055);
-  col += vec3f(0.20, 0.42, 0.95) * h * 0.55;
-  col += vec3f(1.00, 0.52, 0.14) * f * 0.75;
+  col += vec3f(0.16, 0.38, 0.95) * h * 0.32;
+  col += vec3f(1.00, 0.48, 0.12) * f * 0.50;
 
   return vec4f(col, 1.0);
 }
@@ -246,12 +248,12 @@ void main() {
   float home = texture(uHome, tuv).r;
   float food = texture(uFood, tuv).r;
 
-  float h = smoothstep(0.015, 0.55, home) * uIntensity;
-  float f = smoothstep(0.015, 0.55, food) * uIntensity;
+  float h = smoothstep(0.03, 0.42, home) * uIntensity;
+  float f = smoothstep(0.03, 0.42, food) * uIntensity;
 
   vec3 col = vec3(0.035, 0.040, 0.055);
-  col += vec3(0.20, 0.42, 0.95) * h * 0.55;
-  col += vec3(1.00, 0.52, 0.14) * f * 0.75;
+  col += vec3(0.16, 0.38, 0.95) * h * 0.32;
+  col += vec3(1.00, 0.48, 0.12) * f * 0.50;
 
   fragColor = vec4(col, 1.0);
 }

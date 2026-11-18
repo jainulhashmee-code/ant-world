@@ -117,7 +117,7 @@ export class Simulation {
     this.resolution = resolveResolution(opts.population);
 
     this.world = new World();
-    this.world.generate(this.seed);
+    this.world.generate(this.seed, opts.population);
 
     this.agents = new AgentPool(opts.population);
     this.agents.spawn(this.world, opts.population, this.seed);
@@ -228,6 +228,7 @@ export class Simulation {
       // ---- pheromone steering (blind inside the nest apron) --------------
       // Outbound ants follow FOOD; laden ants follow HOME. This is the entire
       // communication system: one scalar field, three taps, one comparison.
+      let onTrail = false;
       if (distNest2 > exitR2) {
         const field: PheromoneField = st === S_RETURNING ? home : food;
         const cL = field.sampleWorld(x + lx * PROBE, y + ly * PROBE);
@@ -238,6 +239,7 @@ export class Simulation {
         } else if (cR > cC && cR > cL) {
           if (cR > PHERO_THRESHOLD) steer -= STEER_PHERO;
         }
+        onTrail = cC > PHERO_THRESHOLD;
       }
 
       // ---- homing pull for laden ants ------------------------------------
@@ -291,8 +293,10 @@ export class Simulation {
       }
 
       // ---- deposit --------------------------------------------------------
+      // FOOD marks the way out; HOME marks the corridor only where it is
+      // productive. Two channels reinforcing each other, not competing.
       if (st === S_RETURNING) food.depositWorld(x, y, DEPOSIT_FOOD);
-      else home.depositWorld(x, y, DEPOSIT_HOME);
+      else if (onTrail) home.depositWorld(x, y, DEPOSIT_HOME);
 
       // ---- transitions ----------------------------------------------------
       if (st === S_SEEKING) {
