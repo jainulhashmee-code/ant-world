@@ -282,4 +282,12 @@ something the energy change solved.
 
 | Commit | Population | Start RSS | End RSS | Slope MB/min | Result |
 | --- | --- | --- | --- | --- | --- |
-| _pending M5_ | 100,000 | | | | |
+| — | 100,000 | — | — | — | **not yet run** |
+
+The README lists "1 hour, flat memory, no leaks" as a target. It has not been
+measured yet, so there is no row here. The longest continuous run so far is
+~9 minutes at 100,000 agents (the 176 s sample above plus the larder-drain run),
+during which sim memory stayed pinned at 6.94 MB — that is encouraging and it is
+not a soak test. A real one needs a fixed-duration harness sampling
+`SimMemory.total()` and RSS, because "I watched it for a while" is not evidence
+of flat memory.
