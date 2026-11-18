@@ -4,7 +4,7 @@ import { World } from '../src/sim/world';
 import { PheromoneField, PheromoneSet } from '../src/sim/pheromones';
 import { SpatialGrid } from '../src/sim/spatial';
 import { AgentPool } from '../src/sim/agents';
-import { S_RETURNING, WORLD } from '../src/core/config';
+import { S_RETURNING, WORLD, ENERGY_MAX } from '../src/core/config';
 
 describe('determinism', () => {
   it('replays bit-identically from the same seed', () => {
@@ -84,6 +84,32 @@ describe('foraging loop', () => {
     for (let i = 0; i < count; i++) {
       if (food[i] > 0) expect(state[i]).toBe(S_RETURNING);
     }
+  });
+
+  it('restores energy when a forager reaches food', () => {
+    // Regression guard for a real bug: energy was refilled only on delivery, so
+    // any ant whose round trip outlasted its lifespan starved mid-trip and
+    // dropped its load. Finding food has to count as eating.
+    //
+    // Asserted on the mechanism, not on colony economics: at low densities most
+    // ants never find a source at all, so "revivals are rare" would be testing
+    // map luck rather than this rule.
+    const sim = new Simulation({ seed: 42, population: 2_000 });
+    const { state, energy, count } = sim.agents;
+
+    let sawCarrier = false;
+    for (let t = 0; t < 3_000 && !sawCarrier; t++) {
+      sim.step();
+      for (let i = 0; i < count; i++) {
+        if (state[i] === S_RETURNING) {
+          // A laden ant has just fed, so it cannot be running on fumes.
+          expect(energy[i]).toBeGreaterThan(ENERGY_MAX * 0.9);
+          sawCarrier = true;
+          break;
+        }
+      }
+    }
+    expect(sawCarrier).toBe(true);
   });
 });
 

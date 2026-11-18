@@ -165,9 +165,12 @@ export const FOOD_RADIUS_MAX = 150;
  * do. Trip rate grows sublinearly with population, so a per-ant budget means a
  * bigger colony gets a longer runway rather than a shorter one.
  *
- * At 2 units/ant: 10,000 ants keep ~14 minutes of work, 100,000 keep ~25.
+ * Measured at 100,000 agents: harvest settles at ~1,100 units/s once the trails
+ * saturate, so 6 units/ant buys about 9 minutes before the colony runs dry.
+ * Note the rate itself grows with the larder (more food, more successful trips),
+ * which is why this does not scale linearly in the other direction.
  */
-export const FOOD_PER_ANT = 2;
+export const FOOD_PER_ANT = 6;
 
 /**
  * Per-source share jitter, as a fraction of an even split. Sources should not

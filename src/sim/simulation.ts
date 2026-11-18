@@ -309,6 +309,14 @@ export class Simulation {
             st = S_RETURNING;
             FD[i] = FOOD_LOAD;
             FL[i] = F_ALIVE | F_CARRYING;
+            // A forager that reached food has, by definition, eaten. Without
+            // this the energy budget only refills on *delivery*, so any ant
+            // whose round trip is longer than its lifespan starves en route and
+            // drops the load it was carrying. At 100,000 agents that was the
+            // majority of the colony: 90,000 revivals in 20 seconds, with two
+            // thirds of all harvested food destroyed in transit. Energy then
+            // means what it should — a lost ant dies, a productive one persists.
+            E[i] = ENERGY_MAX;
             break;
           }
         }
