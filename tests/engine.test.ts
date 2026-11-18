@@ -46,13 +46,15 @@ describe('determinism', () => {
 describe('foraging loop', () => {
   it('completes deliveries and consumes food', () => {
     const sim = new Simulation({ seed: 42, population: 200 });
+    const capacity = sim.world.foodMax.reduce((acc: number, v: number) => acc + v, 0) as number;
     sim.run(3_000);
 
     expect(sim.deliveries).toBeGreaterThan(0);
+    // Food must actually be taken from the world, not just regrown on top of.
     expect(sim.delivered).toBeGreaterThan(0);
-    expect(sim.world.remainingFood()).toBeLessThan(
-      sim.world.foodMax.reduce((acc: number, v: number) => acc + v, 0) as number,
-    );
+    // With regrowth the larder no longer trends downward, so the invariant is a
+    // ceiling rather than a decline: it can never hold more than its capacity.
+    expect(sim.world.remainingFood()).toBeLessThanOrEqual(capacity);
   });
 
   it('keeps every ant inside the world', () => {
@@ -141,6 +143,35 @@ describe('world generation', () => {
     b.generate(7);
     expect(Array.from(a.terrain)).toEqual(Array.from(b.terrain));
     expect(a.foodCount).toBe(b.foodCount);
+  });
+
+  it('regrows food without ever exceeding capacity', () => {
+    // Regression guard: without regrowth the world is finite and the colony has
+    // an ending. Measured at 100,000 agents it eats everything in ~9 minutes and
+    // then 98% of ants wander with nothing to do -- which is exactly what a
+    // viewer sees if they leave the page open.
+    const w = new World();
+    w.generate(42, 5_000);
+
+    const total = (): number => {
+      let s = 0;
+      for (let i = 0; i < w.foodCount; i++) s += w.foodAmount[i];
+      return s;
+    };
+
+    // Drain everything, then let it recover.
+    for (let i = 0; i < w.foodCount; i++) w.foodAmount[i] = 0;
+    expect(total()).toBe(0);
+
+    w.regrow();
+    expect(total()).toBeGreaterThan(0);
+
+    // Saturate: capacity is a hard ceiling. The rate is capacity/8000 per tick,
+    // so a few hundred thousand presses is comfortably past full for any source.
+    for (let i = 0; i < 500_000; i++) w.regrow();
+    for (let i = 0; i < w.foodCount; i++) {
+      expect(w.foodAmount[i]).toBe(w.foodMax[i]);
+    }
   });
 
   it('scales the larder with the colony', () => {

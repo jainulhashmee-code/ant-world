@@ -36,6 +36,8 @@ import {
   STEER_OBSTACLE,
   PHERO_THRESHOLD,
   HOMING_WEIGHT,
+  HUNGRY_ENERGY,
+  HUNGRY_HOMING,
   SEP_RADIUS,
   SEP_WEIGHT,
   SEPARATION_MAX_POP,
@@ -139,6 +141,10 @@ export class Simulation {
     // Field maintenance runs at a slower cadence than movement: nobody can see
     // a pheromone field update at 60 Hz, and it is the second-largest cost.
     if ((this.tick & (FIELD_UPDATE_EVERY - 1)) === 0) this.fields.update();
+
+    // Food regrows every tick: cheap (four integer adds), and it is what makes
+    // the colony sustainable instead of finite. See FOOD_REGROW_DIVISOR.
+    this.world.regrow();
 
     this.tick++;
   }
@@ -250,6 +256,13 @@ export class Simulation {
         const k = HOMING_WEIGHT;
         dx = dx * (1 - k) - (ndx / d) * k;
         dy = dy * (1 - k) - (ndy / d) * k;
+      } else if (st === S_SEEKING && E[i] < HUNGRY_ENERGY) {
+        // Out of reserves: turn back instead of starving in the wilderness.
+        // See HUNGRY_ENERGY for why this is not a cosmetic tweak.
+        const d = Math.sqrt(distNest2) + 1e-6;
+        const k = HUNGRY_HOMING;
+        dx = dx * (1 - k) - (ndx / d) * k;
+        dy = dy * (1 - k) - (ndy / d) * k;
       }
 
       // ---- separation from neighbours ------------------------------------
@@ -320,6 +333,10 @@ export class Simulation {
             break;
           }
         }
+        // Made it home with nothing in the tank: refuel and go out again.
+        // Without this a hungry ant that successfully returned would walk
+        // straight back out on an empty reserve and die on the doorstep.
+        if (st === S_SEEKING && distNest2 <= nestR2) E[i] = ENERGY_MAX;
       } else if (st === S_RETURNING) {
         const rdx = x - nestX;
         const rdy = y - nestY;

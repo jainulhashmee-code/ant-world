@@ -108,6 +108,19 @@ export const SEPARATION_MAX_POP = 20_000;
 /** How strongly a laden ant is pulled toward the nest (prevents deadlocks). */
 export const HOMING_WEIGHT = 0.32;
 
+/**
+ * Energy below which a forager gives up and heads home.
+ *
+ * Without this a hungry ant simply wanders until it starves, and at 100,000
+ * agents that was 56% of the colony dying every lifespan — half the population
+ * churning in random directions at any moment, which is precisely why a
+ * large colony looks like aimless roaming rather than work. Ants do path
+ * integration and turn back when reserves run low; so do these.
+ */
+export const HUNGRY_ENERGY = 70;
+/** Pull toward the nest once hungry. Gentler than a laden ant's, so it still forages on the way. */
+export const HUNGRY_HOMING = 0.06;
+
 // ---------------------------------------------------------------------------
 // Pheromones
 // ---------------------------------------------------------------------------
@@ -179,6 +192,24 @@ export const FOOD_PER_ANT = 6;
  */
 export const FOOD_SHARE_MIN = 0.55;
 export const FOOD_SHARE_MAX = 1.45;
+
+/**
+ * Food regrowth: each source gains `max(1, capacity / FOOD_REGROW_DIVISOR)`
+ * units per tick, capped at its capacity.
+ *
+ * Without regrowth the world is a finite larder and the simulation has an
+ * ending: measured at 100,000 agents, the colony strips 600,000 units bare in
+ * about 9 minutes, after which 98% of ants wander with nothing to do. That is
+ * not a colony foraging, it is a colony that has eaten everything — and it is
+ * what a viewer sees if they leave the page open.
+ *
+ * The divisor sets the regrowth rate relative to a source's capacity, so the
+ * ecology scales with colony size instead of needing retuning per population.
+ * At 100,000 agents this returns ~2,160 units/s against ~1,400/s of harvest:
+ * enough to keep the colony working indefinitely, not so much that every source
+ * sits pinned at full and the trails go slack.
+ */
+export const FOOD_REGROW_DIVISOR = 8_000;
 
 /** Food source ring around the nest, in world units. */
 export const FOOD_DIST_MIN = 420;

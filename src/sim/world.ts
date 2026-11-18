@@ -17,6 +17,7 @@ import {
   FOOD_RADIUS_MAX,
   FOOD_SHARE_MIN,
   FOOD_SHARE_MAX,
+  FOOD_REGROW_DIVISOR,
   FOOD_DIST_MIN,
   FOOD_DIST_MAX,
   FOOD_PER_ANT,
@@ -208,5 +209,23 @@ export class World {
     let sum = 0;
     for (let i = 0; i < this.foodCount; i++) sum += this.foodAmount[i];
     return sum;
+  }
+
+  /**
+   * Regrow every source toward its capacity. Allocation-free, integer-only, and
+   * deterministic — no accumulator array, because the rate is a per-tick integer
+   * derived from each source's own capacity.
+   */
+  regrow(): void {
+    const amounts = this.foodAmount;
+    const max = this.foodMax;
+    for (let i = 0; i < this.foodCount; i++) {
+      const cap = max[i];
+      const have = amounts[i];
+      if (have >= cap) continue;
+      // Capacity-relative, with a floor of 1 so tiny sources still recover.
+      const gain = Math.max(1, (cap / FOOD_REGROW_DIVISOR) | 0);
+      amounts[i] = have + gain > cap ? cap : have + gain;
+    }
   }
 }
