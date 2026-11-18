@@ -20,7 +20,17 @@ interface Args {
   ticks: number;
   warmup: number;
   runs: number;
-  separation: boolean;
+  /**
+   * `undefined` = let the simulation apply its population-based LOD, which is
+   * what ships. Only `--sep` / `--nosep` force it either way.
+   *
+   * This defaulted to `true` and silently overrode the LOD, so the benchmark
+   * was measuring a code path the app never runs at high population: 100,000
+   * agents read 0.69M updates/s here while the browser, on the same machine,
+   * ran 3.02M. A benchmark that does not exercise the shipped configuration is
+   * worse than no benchmark.
+   */
+  separation: boolean | undefined;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -29,7 +39,7 @@ function parseArgs(argv: string[]): Args {
     ticks: 300,
     warmup: 60,
     runs: 3,
-    separation: true,
+    separation: undefined,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -48,6 +58,8 @@ function parseArgs(argv: string[]): Args {
       i++;
     } else if (a === '--nosep') {
       out.separation = false;
+    } else if (a === '--sep') {
+      out.separation = true;
     }
   }
   return out;
@@ -114,7 +126,9 @@ function main(): void {
   console.log(`node ${process.version} · ${process.platform}/${process.arch}`);
   console.log(
     `ticks=${args.ticks} warmup=${args.warmup} runs=${args.runs} ` +
-      `separation=${args.separation ? 'on' : 'off'}`,
+      `separation=${
+        args.separation === undefined ? 'auto (LOD)' : args.separation ? 'forced on' : 'forced off'
+      }`,
   );
   console.log('');
   console.log(

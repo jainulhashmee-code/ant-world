@@ -60,7 +60,12 @@ Commit: _see git log_. Population sweep, `npm run bench`, macOS 26.4.1 / Node 26
 | 10,000 | 375 | 3.75M | 1.41 MB | 512² | |
 | 100,000 | 7 | 0.68M | 6.93 MB | 1024² | **4.4× short of target** |
 
-### Findings
+> **Superseded.** These rows predate the separation LOD, the energy fix and the
+> larder change, and the harness itself had a bug (see finding 5 — it forced
+> separation on). They are kept only as the historical starting point; the
+> current numbers are the M5 tables below. Do not compare against them.
+
+### Findings — headless (M1)
 
 **1. A V8 OSR cliff cost 2.6×, and it was invisible to the profiler.**
 
@@ -106,6 +111,45 @@ The general lesson: this was found by disabling a feature and re-running, not by
 profiling. A sampler attributes the time correctly to a pass that should not be
 running at all.
 
+**3. The separation LOD threshold is the dominant tunable now.**
+
+Measured back-to-back on the M5 commit, forcing the pass either way:
+
+| Population | Forced on | Forced off | Cost of separation |
+| --- | --- | --- | --- |
+| 1,000 | 3.57M | 11.14M | **3.1×** |
+| 10,000 | 2.85M | 19.44M | **6.8×** |
+
+The cost grows with density, which is the shape the LOD needs: cheap and useful
+when the swarm is sparse, ruinous when it is dense. `SEPARATION_MAX_POP = 20,000`
+sits deliberately above 10,000, so the pass is paid where it visibly shapes the
+swarm.
+
+**4. The benchmark was measuring a configuration the app never runs.**
+
+`bench.ts` defaulted to `separation: true` and passed it explicitly, which
+overrode the population-based LOD. Headless reported **0.69M updates/s at
+100,000 agents** while the same machine, same commit, ran **3.02M in the
+browser** — the harness had forced on a pass the app switches off above 20,000.
+
+The tell was simple and should have been checked sooner: two measurements of the
+same code disagreeing by 4.4×. Either the browser is lying or the harness is not
+running the code you think it is. It is nearly always the second one. The default
+is now `undefined` so the LOD decides, and `--sep` exists for anyone who wants the
+forced number deliberately.
+
+---
+
+### M5 — headless throughput
+
+macOS 26.4.1 / Node 26.10.0. Separation follows the shipped population LOD by
+default; `--sep` / `--nosep` force it either way.
+
+| Population | Ticks/s | Updates/s | Sim memory | Field | Separation |
+| --- | --- | --- | --- | --- | --- |
+| 1,000 | 3,214 | 3.21M | 0.49 MB | 256² | on (LOD) |
+| 10,000 | 274 | 2.74M | 1.41 MB | 512² | on (LOD) |
+| 100,000 | 204 | **20.35M** | 6.94 MB | 1024² | off (LOD) |
 
 ### M5 — in-browser, 100,000 agents
 
@@ -119,8 +163,12 @@ the HUD's own stats payload after ~70 s of simulation (2,177 ticks).
 
 Read this honestly:
 
-- **The simulation target is met.** 3.02M updates/s at 100,000 agents, 11.8 ms
-  per tick against a 33.3 ms budget — the fixed 30 Hz step has 2.8× headroom.
+- **"3.02M updates/s" is a schedule being met, not a capacity.** The sim runs a
+  fixed 30 Hz, so `updates/s` at 100,000 agents is 100,000 × 30 by construction —
+  it reads the same on a fast machine and a slow one. What actually varies is
+  `sim/tick`: 11.77 ms against a 33.3 ms budget, i.e. 2.8× headroom (~84 ticks/s
+  of capacity in-browser). The honest claim is "holds 30 Hz at 100,000 agents
+  with 2.8× headroom", not the 3M figure.
 - **Sim memory is 6.94 MB against a 10 MB budget**, and that number is the sum
   of every typed array the engine allocates, not an estimate.
 - **Frame p95 is 22.3 ms at 100K, i.e. ~45 fps, not 60.** The p50 holds the
@@ -133,7 +181,7 @@ Read this honestly:
   marks a healthy 10K colony as failing. It is now coloured against whether the
   sim holds its own 30 Hz step.
 
-### Findings
+### Findings — in-browser (M5)
 
 **1. The FPS counter was measuring the wrong thing, and it hid a wasted loop.**
 

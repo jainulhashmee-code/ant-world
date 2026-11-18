@@ -113,6 +113,7 @@ saves 40 MB/s of PCIe traffic.
 
 ```
 onFrame(now):
+  if now < nextFrameAt: reschedule          // paced to 60 Hz, see below
   dt = now - last
   accumulator += min(dt, 250ms)        // clamp after tab-switch
   while accumulator >= TICK_MS and ticks < MAX_CATCHUP:
@@ -123,6 +124,10 @@ onFrame(now):
 ```
 
 - `TICK_MS = 1000/30`, `MAX_CATCHUP = 5` (never spiral of death).
+- Frames are **paced explicitly** to 16.67 ms. Worker `requestAnimationFrame` is
+  not throttled to the display in every browser — measured at 316 fps, i.e. ~5×
+  the work for frames nobody sees. The gate lives in the scheduler, so an early
+  wakeup costs a timer rather than a frame.
 - Sim is never interpolated in V1 for simplicity; ants move ≤1.4 units/tick, so
   at 4096 world units the stutter is sub-pixel. Interpolation is a later,
   measured decision, not an assumption.
@@ -135,9 +140,11 @@ onFrame(now):
   seed; each agent derives its own state from `(seed, index)` at creation.
 - No `Math.random`, no `Date.now`, no `performance.now` inside `sim/`.
 - Tick count is an integer, incremented exactly once per tick.
-- Golden test: `seed=42`, run 3,000 ticks, FNV-1a hash of the agent pool →
-  asserted in `tests/determinism.test.ts`. Any intentional behaviour change
-  updates the hash in the same commit.
+- Tested by construction rather than by a committed hash: two `Simulation`
+  instances with the same seed are stepped independently and their agent pools
+  must match bit for bit. A golden hash would have to be updated on every
+  intentional behaviour change, which makes it a chore people edit away; a
+  same-seed comparison catches non-determinism and stays valid across tuning.
 
 ---
 

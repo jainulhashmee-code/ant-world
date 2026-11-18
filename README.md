@@ -10,6 +10,11 @@ handful of local rules.
 This is not only an ant simulation. It is an **engine** for large-scale
 agent-based simulation, with ants as the first application.
 
+![100,000 ants foraging in Chrome via WebGPU](./.gstack-shots/ants-100k.png)
+
+*100,000 agents, 6.94 MB of simulation memory, one worker. Four food sources,
+four emergent pheromone trails, no scripted paths.*
+
 ---
 
 ## Status
