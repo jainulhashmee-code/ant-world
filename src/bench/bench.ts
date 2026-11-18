@@ -20,10 +20,17 @@ interface Args {
   ticks: number;
   warmup: number;
   runs: number;
+  separation: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const out: Args = { pops: [100, 1_000, 10_000], ticks: 300, warmup: 60, runs: 3 };
+  const out: Args = {
+    pops: [100, 1_000, 10_000],
+    ticks: 300,
+    warmup: 60,
+    runs: 3,
+    separation: true,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const v = argv[i + 1];
@@ -39,6 +46,8 @@ function parseArgs(argv: string[]): Args {
     } else if (a === '--runs') {
       out.runs = Number(v);
       i++;
+    } else if (a === '--nosep') {
+      out.separation = false;
     }
   }
   return out;
@@ -59,7 +68,11 @@ function fmt(n: number, digits = 0): string {
 
 function benchPopulation(pop: number, args: Args): void {
   const before = mem.total();
-  const sim = new Simulation({ seed: 42, population: pop });
+  const sim = new Simulation({
+    seed: 42,
+    population: pop,
+    separation: args.separation,
+  });
   sim.world; // touch so nothing is treated as dead code
   const bytes = mem.total() - before;
 
@@ -99,7 +112,10 @@ function main(): void {
   console.log('');
   console.log('ANT WORLD — headless simulation benchmark');
   console.log(`node ${process.version} · ${process.platform}/${process.arch}`);
-  console.log(`ticks=${args.ticks} warmup=${args.warmup} runs=${args.runs}`);
+  console.log(
+    `ticks=${args.ticks} warmup=${args.warmup} runs=${args.runs} ` +
+      `separation=${args.separation ? 'on' : 'off'}`,
+  );
   console.log('');
   console.log(
     'population'.padStart(10) +

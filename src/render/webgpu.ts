@@ -41,7 +41,6 @@ export class WebGPURenderer implements Renderer {
 
   private readonly device: GPUDevice;
   private readonly context: GPUCanvasContext;
-  private readonly format: GPUTextureFormat;
   private readonly canvas: OffscreenCanvas;
 
   private readonly antInstances: InstanceBuffer;
@@ -87,7 +86,6 @@ export class WebGPURenderer implements Renderer {
     this.canvas = canvas;
     this.device = device;
     this.context = context;
-    this.format = format;
 
     this.antInstances = new InstanceBuffer(antCapacity);
     this.markerInstances = new InstanceBuffer(512);
@@ -211,7 +209,11 @@ export class WebGPURenderer implements Renderer {
     this.layers = { ...layers };
   }
 
-  uploadPheromone(home: Uint8Array, food: Uint8Array, size: number): void {
+  uploadPheromone(
+    home: Uint8Array<ArrayBuffer>,
+    food: Uint8Array<ArrayBuffer>,
+    size: number,
+  ): void {
     if (this.texSize !== size) this.createPheroTextures(size);
 
     const extent = { width: size, height: size };

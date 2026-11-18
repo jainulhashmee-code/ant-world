@@ -24,31 +24,31 @@ export class SimMemory {
     this.bytes += array.byteLength;
   }
 
-  f32(label: string, n: number): Float32Array {
+  f32(label: string, n: number): Float32Array<ArrayBuffer> {
     const a = new Float32Array(n);
     this.note(label, a);
     return a;
   }
 
-  u8(label: string, n: number): Uint8Array {
+  u8(label: string, n: number): Uint8Array<ArrayBuffer> {
     const a = new Uint8Array(n);
     this.note(label, a);
     return a;
   }
 
-  u16(label: string, n: number): Uint16Array {
+  u16(label: string, n: number): Uint16Array<ArrayBuffer> {
     const a = new Uint16Array(n);
     this.note(label, a);
     return a;
   }
 
-  u32(label: string, n: number): Uint32Array {
+  u32(label: string, n: number): Uint32Array<ArrayBuffer> {
     const a = new Uint32Array(n);
     this.note(label, a);
     return a;
   }
 
-  i32(label: string, n: number): Int32Array {
+  i32(label: string, n: number): Int32Array<ArrayBuffer> {
     const a = new Int32Array(n);
     this.note(label, a);
     return a;

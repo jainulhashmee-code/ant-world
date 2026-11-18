@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Ant World — agent simulation engine</title>
+    <meta
+      name="description"
+      content="A browser-based agent simulation engine. 100,000 autonomous ants, 60 FPS, under 10 MB of simulation memory."
+    />
+    <style>
+      :root {
+        --bg: #09090b;
+        --ink: #e8e4dc;
+        --dim: #8b8478;
+        --faint: #3a3630;
+        --line: rgba(232, 228, 220, 0.09);
+        --amber: #ffb242;
+        --blue: #6b9cff;
+        --good: #5ad48a;
+        --bad: #ff6b6b;
+        --panel: rgba(12, 12, 14, 0.72);
+        --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--mono);
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      #world {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        touch-action: none;
+        cursor: grab;
+      }
+
+      #world.dragging {
+        cursor: grabbing;
+      }
+
+      .overlay {
+        position: fixed;
+        z-index: 10;
+        pointer-events: none;
+      }
+
+      .overlay > * {
+        pointer-events: auto;
+      }
+
+      /* ---- title ---- */
+      #title {
+        top: 18px;
+        left: 20px;
+      }
+
+      #title h1 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink);
+      }
+
+      #title .sub {
+        margin-top: 5px;
+        font-size: 10.5px;
+        color: var(--dim);
+        letter-spacing: 0.04em;
+        line-height: 1.5;
+      }
+
+      /* ---- stats ---- */
+      #stats {
+        top: 18px;
+        right: 20px;
+        min-width: 236px;
+        background: var(--panel);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-size: 11px;
+        line-height: 1.85;
+      }
+
+      #stats .hero {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding-bottom: 8px;
+        margin-bottom: 8px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      #stats .hero .big {
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #stats .hero .unit {
+        font-size: 10px;
+        color: var(--dim);
+        letter-spacing: 0.1em;
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .row .k {
+        color: var(--dim);
+      }
+
+      .row .v {
+        color: var(--ink);
+      }
+
+      .row .v.amber {
+        color: var(--amber);
+      }
+
+      .row .v.blue {
+        color: var(--blue);
+      }
+
+      .row .v.good {
+        color: var(--good);
+      }
+
+      .row .v.bad {
+        color: var(--bad);
+      }
+
+      .sep {
+        height: 1px;
+        background: var(--line);
+        margin: 8px 0;
+      }
+
+      .hint {
+        font-size: 9.5px;
+        color: var(--faint);
+        letter-spacing: 0.06em;
+        margin-top: 8px;
+        line-height: 1.6;
+      }
+
+      /* ---- controls ---- */
+      #controls {
+        bottom: 18px;
+        left: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      button,
+      select {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink);
+        background: var(--panel);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 7px 11px;
+        cursor: pointer;
+        transition:
+          border-color 0.15s ease,
+          color 0.15s ease,
+          background 0.15s ease;
+      }
+
+      button:hover,
+      select:hover {
+        border-color: rgba(232, 228, 220, 0.28);
+      }
+
+      button.on {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+
+      button:active {
+        transform: translateY(1px);
+      }
+
+      select {
+        appearance: none;
+        padding-right: 24px;
+        background-image: linear-gradient(45deg, transparent 50%, var(--dim) 50%),
+          linear-gradient(135deg, var(--dim) 50%, transparent 50%);
+        background-position:
+          calc(100% - 13px) 50%,
+          calc(100% - 9px) 50%;
+        background-size: 4px 4px;
+        background-repeat: no-repeat;
+      }
+
+      #legend {
+        bottom: 18px;
+        right: 20px;
+        font-size: 10px;
+        color: var(--dim);
+        text-align: right;
+        line-height: 1.9;
+        letter-spacing: 0.04em;
+      }
+
+      .dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+
+      /* ---- boot / error ---- */
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        transition: opacity 0.5s ease;
+        font-size: 12px;
+        color: var(--dim);
+        letter-spacing: 0.1em;
+      }
+
+      #boot.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      #boot .dotpulse::after {
+        content: "";
+        animation: dots 1.4s steps(4, end) infinite;
+      }
+
+      @keyframes dots {
+        0% {
+          content: "";
+        }
+        25% {
+          content: ".";
+        }
+        50% {
+          content: "..";
+        }
+        75% {
+          content: "...";
+        }
+      }
+
+      #error {
+        position: fixed;
+        inset: auto 20px 20px 20px;
+        z-index: 60;
+        display: none;
+        background: #2a1414;
+        border: 1px solid var(--bad);
+        color: #ffd7d7;
+        font-size: 11px;
+        padding: 12px 14px;
+        border-radius: 8px;
+        white-space: pre-wrap;
+        line-height: 1.6;
+      }
+
+      @media (max-width: 720px) {
+        #stats {
+          min-width: 0;
+          right: 12px;
+          top: 12px;
+          padding: 10px 11px;
+          font-size: 10px;
+        }
+        #title {
+          top: 12px;
+          left: 14px;
+        }
+        #title .sub {
+          display: none;
+        }
+        #legend {
+          display: none;
+        }
+        #controls {
+          left: 14px;
+          bottom: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="world"></canvas>
+
+    <div class="overlay" id="title">
+      <h1>Ant World</h1>
+      <div class="sub">
+        agent simulation engine<br />
+        <span id="backend">booting…</span>
+      </div>
+    </div>
+
+    <div class="overlay" id="stats">
+      <div class="hero">
+        <span class="big" id="s-fps">—</span>
+        <span class="unit">FPS</span>
+      </div>
+      <div class="row"><span class="k">frame p50</span><span class="v" id="s-p50">—</span></div>
+      <div class="row"><span class="k">frame p95</span><span class="v" id="s-p95">—</span></div>
+      <div class="row"><span class="k">frame p99</span><span class="v" id="s-p99">—</span></div>
+      <div class="sep"></div>
+      <div class="row"><span class="k">population</span><span class="v" id="s-pop">—</span></div>
+      <div class="row"><span class="k">updates/s</span><span class="v" id="s-ups">—</span></div>
+      <div class="row"><span class="k">sim tick</span><span class="v" id="s-tick">—</span></div>
+      <div class="row"><span class="k">sim cpu</span><span class="v" id="s-simms">—</span></div>
+      <div class="row"><span class="k">render cpu</span><span class="v" id="s-renms">—</span></div>
+      <div class="row"><span class="k">sim memory</span><span class="v" id="s-mem">—</span></div>
+      <div class="sep"></div>
+      <div class="row"><span class="k">trips</span><span class="v amber" id="s-trips">—</span></div>
+      <div class="row"><span class="k">returning</span><span class="v amber" id="s-ret">—</span></div>
+      <div class="row"><span class="k">food left</span><span class="v good" id="s-food">—</span></div>
+      <div class="hint">sim memory is typed-array bytes only —<br />GPU and DOM excluded</div>
+    </div>
+
+    <div class="overlay" id="controls">
+      <button id="btn-pause">Pause</button>
+      <button id="btn-speed">1×</button>
+      <select id="sel-pop" title="Population (restarts the world)">
+        <option value="100">100 ants</option>
+        <option value="1000">1,000 ants</option>
+        <option value="10000" selected>10,000 ants</option>
+        <option value="50000">50,000 ants</option>
+        <option value="100000">100,000 ants</option>
+      </select>
+      <button id="btn-phero" class="on">Pheromones</button>
+      <button id="btn-markers" class="on">Terrain</button>
+      <button id="btn-reset">New world</button>
+    </div>
+
+    <div class="overlay" id="legend">
+      <div><span class="dot" style="background: #ffb242"></span>carrying food</div>
+      <div><span class="dot" style="background: #d6c4a8"></span>foraging</div>
+      <div><span class="dot" style="background: #4ac468"></span>food source</div>
+      <div style="margin-top: 6px; color: var(--faint)">drag to pan · scroll to zoom</div>
+    </div>
+
+    <div id="boot"><span class="dotpulse">starting colony</span></div>
+    <div id="error"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

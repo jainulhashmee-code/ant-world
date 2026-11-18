@@ -25,11 +25,16 @@ export class PheromoneField {
    * Current field. The reference is stable for the lifetime of the field —
    * the renderer uploads this exact array, so it must never be swapped.
    */
-  readonly data: Uint8Array;
+  readonly data: Uint8Array<ArrayBuffer>;
   /** Blur destination. Shared between channels; see `PheromoneSet`. */
-  private readonly scratch: Uint8Array;
+  private readonly scratch: Uint8Array<ArrayBuffer>;
 
-  constructor(label: string, size: number, worldSize: number, scratch: Uint8Array) {
+  constructor(
+    label: string,
+    size: number,
+    worldSize: number,
+    scratch: Uint8Array<ArrayBuffer>,
+  ) {
     this.size = size;
     this.invCell = size / worldSize;
     this.data = mem.u8(`phero.${label}`, size * size);

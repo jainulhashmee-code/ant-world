@@ -147,7 +147,11 @@ export class WebGL2Renderer implements Renderer {
     this.layers = { ...layers };
   }
 
-  uploadPheromone(home: Uint8Array, food: Uint8Array, size: number): void {
+  uploadPheromone(
+    home: Uint8Array<ArrayBuffer>,
+    food: Uint8Array<ArrayBuffer>,
+    size: number,
+  ): void {
     const gl = this.gl;
     if (this.texSize !== size) {
       if (this.homeTex) gl.deleteTexture(this.homeTex);

@@ -28,7 +28,11 @@ export interface Renderer {
   resize(width: number, height: number): void;
   setWorld(world: World): void;
   setLayers(layers: Layers): void;
-  uploadPheromone(home: Uint8Array, food: Uint8Array, size: number): void;
+  uploadPheromone(
+    home: Uint8Array<ArrayBuffer>,
+    food: Uint8Array<ArrayBuffer>,
+    size: number,
+  ): void;
   uploadAgents(pool: AgentPool, count: number): void;
   render(view: ViewState): void;
   dispose(): void;

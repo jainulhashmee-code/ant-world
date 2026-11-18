@@ -38,6 +38,7 @@ import {
   HOMING_WEIGHT,
   SEP_RADIUS,
   SEP_WEIGHT,
+  SEPARATION_MAX_POP,
   DEPOSIT_FOOD,
   DEPOSIT_HOME,
   NEST_RADIUS,
@@ -65,7 +66,10 @@ const SEP_R2 = SEP_RADIUS * SEP_RADIUS;
 export interface SimOptions {
   seed: number;
   population: number;
-  /** Disable separation for A/B measurement of that pass alone. */
+  /**
+   * Override the automatic separation LOD. Normally left undefined so the
+   * population-based rule below decides; only benchmarks A/B this.
+   */
   separation?: boolean;
 }
 
@@ -108,7 +112,8 @@ export class Simulation {
 
   constructor(opts: SimOptions) {
     this.seed = opts.seed >>> 0;
-    this.separation = opts.separation !== false;
+    // Density-aware LOD: see SEPARATION_MAX_POP for the measurement behind it.
+    this.separation = opts.separation ?? opts.population <= SEPARATION_MAX_POP;
     this.resolution = resolveResolution(opts.population);
 
     this.world = new World();
